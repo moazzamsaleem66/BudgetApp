@@ -1,16 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../data/models/budget_models.dart';
 import '../state/budget_state_scope.dart';
+import 'login_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final firebaseUser = FirebaseAuth.instance.currentUser;
     final profile = BudgetStateScope.of(context).profile;
     final items = profile.items.where((item) => item.iconName != 'premium').toList();
-    final initial = profile.name.trim().isEmpty ? 'M' : profile.name.trim()[0].toUpperCase();
+    final name = (firebaseUser?.displayName?.trim().isNotEmpty ?? false)
+        ? firebaseUser!.displayName!.trim()
+        : profile.name;
+    final email = firebaseUser?.email ?? profile.email;
+    final initial = name.trim().isEmpty ? 'M' : name.trim()[0].toUpperCase();
 
     return DecoratedBox(
       decoration: const BoxDecoration(
@@ -72,7 +79,7 @@ class ProfileScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            profile.name,
+                            name,
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w800,
@@ -81,7 +88,7 @@ class ProfileScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            profile.email,
+                            email,
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.9),
                               fontWeight: FontWeight.w500,
@@ -102,6 +109,25 @@ class ProfileScreen extends StatelessWidget {
                     onTap: () => _openSettingDialog(context, item),
                   ),
                 ),
+                _GlassItemTile(
+                  title: 'Logout',
+                  subtitle: 'Sign out from this device',
+                  icon: Icons.logout_rounded,
+                  onTap: () => _logout(context),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 50,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF0B8F6E),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    onPressed: () => _logout(context),
+                    icon: const Icon(Icons.logout_rounded),
+                    label: const Text('Logout', style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                ),
               ],
             ),
           ),
@@ -109,6 +135,17 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _logout(BuildContext context) async {
+  await FirebaseAuth.instance.signOut();
+  if (!context.mounted) return;
+  Navigator.of(context).pushAndRemoveUntil(
+    MaterialPageRoute<void>(
+      builder: (_) => const LoginScreen(startInLoginMode: true),
+    ),
+    (route) => false,
+  );
 }
 
 Future<void> _openSettingDialog(BuildContext context, ProfileItem item) async {

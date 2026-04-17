@@ -1,5 +1,7 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../data/repositories/firebase_auth_repository.dart';
 import 'main_shell.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -23,7 +25,10 @@ class _LoginScreenState extends State<LoginScreen> {
   final _signupPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
+  final _authRepo = FirebaseAuthRepository();
+
   late bool _isLogin;
+  bool _authLoading = false;
 
   @override
   void initState() {
@@ -43,9 +48,168 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _goToDashboard() {
-    Navigator.of(context).pushReplacement(
+    Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(builder: (_) => const MainShell()),
+      (route) => false,
     );
+  }
+
+  Future<void> _handleLogin() async {
+    if (!(_loginFormKey.currentState?.validate() ?? false)) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _authLoading = true);
+
+    try {
+      await _authRepo.signIn(
+        email: _loginEmailController.text.trim(),
+        password: _loginPasswordController.text,
+      );
+      if (!mounted) return;
+      _showMessage('Login successful.');
+      _goToDashboard();
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      _showMessage(_friendlyAuthError(e), isError: true);
+    } catch (_) {
+      if (!mounted) return;
+      _showMessage('Something went wrong. Please try again.', isError: true);
+    } finally {
+      if (mounted) {
+        setState(() => _authLoading = false);
+      }
+    }
+  }
+
+  Future<void> _handleSignup() async {
+    if (!(_signupFormKey.currentState?.validate() ?? false)) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _authLoading = true);
+
+    try {
+      await _authRepo.signUp(
+        name: _nameController.text.trim(),
+        email: _signupEmailController.text.trim(),
+        password: _signupPasswordController.text,
+      );
+      if (!mounted) return;
+      _showMessage('Account created successfully.');
+      _goToDashboard();
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      _showMessage(_friendlyAuthError(e), isError: true);
+    } catch (_) {
+      if (!mounted) return;
+      _showMessage('Something went wrong. Please try again.', isError: true);
+    } finally {
+      if (mounted) {
+        setState(() => _authLoading = false);
+      }
+    }
+  }
+
+  Future<void> _openForgotPasswordDialog() async {
+    final emailController = TextEditingController(text: _loginEmailController.text.trim());
+    final formKey = GlobalKey<FormState>();
+    var sending = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Reset Password'),
+              content: Form(
+                key: formKey,
+                child: TextFormField(
+                  controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    hintText: 'you@example.com',
+                  ),
+                  validator: _validateEmail,
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: sending ? null : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: sending
+                      ? null
+                      : () async {
+                          if (!(formKey.currentState?.validate() ?? false)) return;
+                          setDialogState(() => sending = true);
+                          try {
+                            await _authRepo.sendPasswordResetEmail(emailController.text);
+                            if (context.mounted) {
+                              Navigator.of(dialogContext).pop();
+                              _showMessage('Password reset email sent. Check your inbox.');
+                            }
+                          } on FirebaseAuthException catch (e) {
+                            if (context.mounted) {
+                              _showMessage(_friendlyAuthError(e), isError: true);
+                            }
+                            setDialogState(() => sending = false);
+                          } catch (_) {
+                            if (context.mounted) {
+                              _showMessage('Unable to send reset email right now.', isError: true);
+                            }
+                            setDialogState(() => sending = false);
+                          }
+                        },
+                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF08A66F)),
+                  child: sending
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Send'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    emailController.dispose();
+  }
+
+  void _showMessage(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? const Color(0xFFB42318) : const Color(0xFF087C5D),
+      ),
+    );
+  }
+
+  String _friendlyAuthError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'invalid-email':
+        return 'Please enter a valid email address.';
+      case 'invalid-credential':
+      case 'wrong-password':
+      case 'user-not-found':
+        return 'Email or password is incorrect.';
+      case 'email-already-in-use':
+        return 'This email is already registered.';
+      case 'weak-password':
+        return 'Password is too weak. Use at least 8 characters.';
+      case 'too-many-requests':
+        return 'Too many attempts. Please wait and try again.';
+      case 'network-request-failed':
+        return 'No internet connection. Please check your network.';
+      case 'operation-not-allowed':
+        return 'Email/Password login is disabled in Firebase. Enable it from Firebase Auth settings.';
+      default:
+        return e.message ?? 'Authentication failed. Please try again.';
+    }
   }
 
   @override
@@ -58,57 +222,72 @@ class _LoginScreenState extends State<LoginScreen> {
       resizeToAvoidBottomInset: true,
       body: SafeArea(
         top: true,
-        child: Column(
+        child: Stack(
           children: [
-            Expanded(
-              child: SingleChildScrollView(
-                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                padding: EdgeInsets.fromLTRB(16, 20, 16, isKeyboardOpen ? 12 : 0),
-                child: Column(
-                  children: [
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.fromLTRB(24, 26, 24, 16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8F8F8),
-                        borderRadius: BorderRadius.circular(28),
-                      ),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 180),
-                        child: _isLogin ? _buildLoginCard() : _buildSignUpCard(),
-                      ),
+            Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                    padding: EdgeInsets.fromLTRB(16, 20, 16, isKeyboardOpen ? 12 : 0),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.fromLTRB(24, 26, 24, 16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8F8F8),
+                            borderRadius: BorderRadius.circular(28),
+                          ),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 180),
+                            child: _isLogin ? _buildLoginCard() : _buildSignUpCard(),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
+                if (!isKeyboardOpen)
+                  Container(
+                    height: 84,
+                    color: const Color(0xFFD7E8E1),
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 10),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _BottomModeButton(
+                            label: 'LOGIN',
+                            icon: Icons.login,
+                            selected: _isLogin,
+                            dashedWhenInactive: true,
+                            onTap: () => setState(() => _isLogin = true),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _BottomModeButton(
+                            label: 'SIGNUP',
+                            icon: Icons.person_add,
+                            selected: !_isLogin,
+                            dashedWhenInactive: false,
+                            onTap: () => setState(() => _isLogin = false),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
-            if (!isKeyboardOpen)
-              Container(
-                height: 84,
-                color: const Color(0xFFD7E8E1),
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 10),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _BottomModeButton(
-                        label: 'LOGIN',
-                        icon: Icons.login,
-                        selected: _isLogin,
-                        dashedWhenInactive: true,
-                        onTap: () => setState(() => _isLogin = true),
-                      ),
+            if (_authLoading)
+              Positioned.fill(
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  child: const Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFF08A66F),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _BottomModeButton(
-                        label: 'SIGNUP',
-                        icon: Icons.person_add,
-                        selected: !_isLogin,
-                        dashedWhenInactive: false,
-                        onTap: () => setState(() => _isLogin = false),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
           ],
@@ -137,6 +316,7 @@ class _LoginScreenState extends State<LoginScreen> {
           const SizedBox(height: 8),
           TextFormField(
             controller: _nameController,
+            enabled: !_authLoading,
             decoration: _fieldDecoration(hint: 'Johnathan Doe', prefixIcon: Icons.person_outline),
             validator: (value) => (value ?? '').trim().isEmpty ? 'Name is required' : null,
           ),
@@ -145,6 +325,7 @@ class _LoginScreenState extends State<LoginScreen> {
           const SizedBox(height: 8),
           TextFormField(
             controller: _signupEmailController,
+            enabled: !_authLoading,
             keyboardType: TextInputType.emailAddress,
             decoration: _fieldDecoration(hint: 'john@smartbudget.app', prefixIcon: Icons.alternate_email),
             validator: _validateEmail,
@@ -154,6 +335,7 @@ class _LoginScreenState extends State<LoginScreen> {
           const SizedBox(height: 8),
           TextFormField(
             controller: _signupPasswordController,
+            enabled: !_authLoading,
             obscureText: true,
             decoration: _fieldDecoration(hint: '********', prefixIcon: Icons.lock_outline),
             validator: _validatePassword,
@@ -163,6 +345,7 @@ class _LoginScreenState extends State<LoginScreen> {
           const SizedBox(height: 8),
           TextFormField(
             controller: _confirmPasswordController,
+            enabled: !_authLoading,
             obscureText: true,
             decoration: _fieldDecoration(hint: '********', prefixIcon: Icons.shield_outlined),
             validator: (value) {
@@ -176,7 +359,7 @@ class _LoginScreenState extends State<LoginScreen> {
             width: double.infinity,
             height: 50,
             child: ElevatedButton(
-              onPressed: _goToDashboard,
+              onPressed: _authLoading ? null : _handleSignup,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF08A66F),
                 foregroundColor: Colors.white,
@@ -184,7 +367,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 shadowColor: const Color(0xFF08A66F).withValues(alpha: 0.28),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: const Text('Sign Up', style: TextStyle(fontSize: 22 / 2, fontWeight: FontWeight.w700)),
+              child: _authLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Sign Up', style: TextStyle(fontSize: 22 / 2, fontWeight: FontWeight.w700)),
             ),
           ),
           const SizedBox(height: 14),
@@ -196,7 +385,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(color: Color(0xFF1E293B), fontSize: 14),
               ),
               TextButton(
-                onPressed: () => setState(() => _isLogin = true),
+                onPressed: _authLoading ? null : () => setState(() => _isLogin = true),
                 style: TextButton.styleFrom(
                   minimumSize: Size.zero,
                   padding: EdgeInsets.zero,
@@ -238,6 +427,7 @@ class _LoginScreenState extends State<LoginScreen> {
           const SizedBox(height: 8),
           TextFormField(
             controller: _loginEmailController,
+            enabled: !_authLoading,
             keyboardType: TextInputType.emailAddress,
             decoration: _fieldDecoration(hint: 'john@smartbudget.app', prefixIcon: Icons.alternate_email),
             validator: _validateEmail,
@@ -247,22 +437,40 @@ class _LoginScreenState extends State<LoginScreen> {
           const SizedBox(height: 8),
           TextFormField(
             controller: _loginPasswordController,
+            enabled: !_authLoading,
             obscureText: true,
             decoration: _fieldDecoration(hint: '********', prefixIcon: Icons.lock_outline),
             validator: _validatePassword,
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _authLoading ? null : _openForgotPasswordDialog,
+              child: const Text(
+                'Forgot Password?',
+                style: TextStyle(color: Color(0xFF087C5D), fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
           SizedBox(
             width: double.infinity,
             height: 50,
             child: ElevatedButton(
-              onPressed: _goToDashboard,
+              onPressed: _authLoading ? null : _handleLogin,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF08A66F),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: const Text('Login', style: TextStyle(fontWeight: FontWeight.w700)),
+              child: _authLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Login', style: TextStyle(fontWeight: FontWeight.w700)),
             ),
           ),
           const SizedBox(height: 14),
@@ -274,7 +482,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(color: Color(0xFF1E293B), fontSize: 14),
               ),
               TextButton(
-                onPressed: () => setState(() => _isLogin = false),
+                onPressed: _authLoading ? null : () => setState(() => _isLogin = false),
                 style: TextButton.styleFrom(
                   minimumSize: Size.zero,
                   padding: EdgeInsets.zero,
@@ -425,8 +633,6 @@ class _DashedRRectContainer extends StatelessWidget {
   }
 }
 
-
-
 class _DashedRRectPainter extends CustomPainter {
   const _DashedRRectPainter({required this.color, required this.radius});
 
@@ -460,7 +666,3 @@ class _DashedRRectPainter extends CustomPainter {
     return oldDelegate.color != color || oldDelegate.radius != radius;
   }
 }
-
-
-
-

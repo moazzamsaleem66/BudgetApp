@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../data/local/local_budget_database.dart';
 import '../../data/models/budget_models.dart';
@@ -45,11 +46,12 @@ class BudgetAppState extends ChangeNotifier {
 
   BudgetAppState._init({MockBudgetRepository? repository})
       : _repository = repository ?? const MockBudgetRepository(),
-        _userId = (repository ?? const MockBudgetRepository())
-            .getProfileOverview()
-            .email
-            .trim()
-            .toLowerCase(),
+        _userId = FirebaseAuth.instance.currentUser?.uid ??
+            (repository ?? const MockBudgetRepository())
+                .getProfileOverview()
+                .email
+                .trim()
+                .toLowerCase(),
         _selectedMonth =
             (repository ?? const MockBudgetRepository()).getAvailableMonths().first {
     _hydrateFromLocalDb();

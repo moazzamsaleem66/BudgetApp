@@ -1,8 +1,12 @@
-﻿import 'dart:async';
+import 'dart:async';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import 'landing_screen.dart';
+import '../../../../core/services/intro_prefs.dart';
+import 'login_screen.dart';
+import 'main_shell.dart';
+import 'onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -24,13 +28,30 @@ class _SplashScreenState extends State<SplashScreen>
       duration: const Duration(milliseconds: 900),
     )..forward();
     _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
+    unawaited(_routeNext());
+  }
 
-    Timer(const Duration(milliseconds: 3500), () {
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => const LandingScreen()),
-      );
-    });
+  Future<void> _routeNext() async {
+    await Future<void>.delayed(const Duration(milliseconds: 1800));
+    if (!mounted) return;
+
+    final hasSeenIntro = await IntroPrefs.hasSeenIntro();
+    if (!mounted) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    final Widget target;
+
+    if (!hasSeenIntro) {
+      target = const OnboardingScreen();
+    } else if (user != null) {
+      target = const MainShell();
+    } else {
+      target = const LoginScreen(startInLoginMode: true);
+    }
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(builder: (_) => target),
+    );
   }
 
   @override
@@ -199,4 +220,3 @@ class _GeometricPatternPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-

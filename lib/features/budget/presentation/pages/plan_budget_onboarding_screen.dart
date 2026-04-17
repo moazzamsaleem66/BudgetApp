@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../core/services/intro_prefs.dart';
 import 'login_screen.dart';
 import 'stay_in_control_onboarding_screen.dart';
 
 class PlanBudgetOnboardingScreen extends StatelessWidget {
   const PlanBudgetOnboardingScreen({super.key});
 
-  void _finish(BuildContext context) {
+  Future<void> _finish(BuildContext context) async {
+    await IntroPrefs.markSeen();
+    if (!context.mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
     );

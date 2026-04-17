@@ -56,120 +56,57 @@ class _MainShellState extends State<MainShell> {
             children: _pages,
           ),
         ),
-        bottomNavigationBar: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
-          child: SizedBox(
-            height: 74,
-            child: Row(
-              children: [
-                _GlassNavItem(
-                  label: 'Home',
-                  icon: Icons.home_outlined,
-                  activeIcon: Icons.home,
-                  selected: _index == 0,
-                  onTap: () => _onSelectTab(0),
-                ),
-                _GlassNavItem(
-                  label: 'Transactions',
-                  icon: Icons.receipt_long_outlined,
-                  activeIcon: Icons.receipt_long,
-                  selected: _index == 1,
-                  onTap: () => _onSelectTab(1),
-                ),
-                _GlassNavItem(
-                  label: 'Analytics',
-                  icon: Icons.insights_outlined,
-                  activeIcon: Icons.insights,
-                  selected: _index == 2,
-                  onTap: () => _onSelectTab(2),
-                ),
-                _GlassNavItem(
-                  label: 'Budget',
-                  icon: Icons.account_balance_wallet_outlined,
-                  activeIcon: Icons.account_balance_wallet,
-                  selected: _index == 3,
-                  onTap: () => _onSelectTab(3),
-                ),
-                _GlassNavItem(
-                  label: 'Profile',
-                  icon: Icons.person_outline,
-                  activeIcon: Icons.person,
-                  selected: _index == 4,
-                  onTap: () => _onSelectTab(4),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _GlassNavItem extends StatelessWidget {
-  const _GlassNavItem({
-    required this.label,
-    required this.icon,
-    required this.activeIcon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final IconData activeIcon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    const activeColor = Color(0xFF111827);
-    const inactiveColor = Color(0xFF263447);
-
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 3),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Container(
+            decoration: const BoxDecoration(
               color: Colors.transparent,
-              border: Border.all(color: Colors.transparent),
+              border: Border(
+                top: BorderSide(color: Color(0x14000000)),
+              ),
             ),
-            padding: const EdgeInsets.fromLTRB(4, 4, 4, 4),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  selected ? activeIcon : icon,
-                  color: selected ? activeColor : inactiveColor.withValues(alpha: 0.82),
-                  size: selected ? 21 : 20,
+            child: BottomNavigationBar(
+              currentIndex: _index,
+              onTap: _onSelectTab,
+              type: BottomNavigationBarType.fixed,
+              elevation: 0,
+              backgroundColor: const Color(0xFFF7FBFB),
+              selectedItemColor: const Color(0xFF0C8E6A),
+              unselectedItemColor: const Color(0xFF526071),
+              selectedLabelStyle: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+              ),
+              unselectedLabelStyle: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 11.5,
+              ),
+              items: const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.home_outlined),
+                  activeIcon: Icon(Icons.home),
+                  label: 'Home',
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: selected ? activeColor : inactiveColor.withValues(alpha: 0.92),
-                    fontWeight: selected ? FontWeight.w900 : FontWeight.w800,
-                    fontSize: selected ? 12.6 : 11.8,
-                    letterSpacing: 0.24,
-                    height: 1.0,
-                    shadows: [
-                      Shadow(
-                        color: Colors.black.withValues(alpha: selected ? 0.12 : 0.06),
-                        blurRadius: selected ? 2 : 1,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
-                  ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.receipt_long_outlined),
+                  activeIcon: Icon(Icons.receipt_long),
+                  label: 'Transactions',
                 ),
-                const SizedBox(height: 2),
-                const SizedBox(height: 2),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.insights_outlined),
+                  activeIcon: Icon(Icons.insights),
+                  label: 'Analytics',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.account_balance_wallet_outlined),
+                  activeIcon: Icon(Icons.account_balance_wallet),
+                  label: 'Budget',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.person_outline),
+                  activeIcon: Icon(Icons.person),
+                  label: 'Profile',
+                ),
               ],
             ),
           ),
